@@ -15,7 +15,6 @@ metadata:
     app: httpbin
     app.kubernetes.io/instance: httpbin
     service: httpbin
-    solo.io/service-scope: global
 spec:
   ports:
     - name: http
