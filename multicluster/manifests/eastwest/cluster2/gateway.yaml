@@ -4,7 +4,7 @@ metadata:
   name: istio-eastwest
   namespace: istio-eastwest
 spec:
-  gatewayClassName: istio
+  gatewayClassName: istio-eastwest
   listeners:
     - name: cross-network
       port: 15008
