@@ -42,6 +42,7 @@ spec:
       kind: ValidatingWebhookConfiguration
       jqPathExpressions:
         - .webhooks[]?.clientConfig.caBundle
+        - .webhooks[]?.failurePolicy
   syncPolicy:
     automated:
       prune: true
