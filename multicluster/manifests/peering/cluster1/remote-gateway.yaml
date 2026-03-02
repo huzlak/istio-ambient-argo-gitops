@@ -1,0 +1,33 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: istio-remote-peer-cluster2
+  namespace: istio-eastwest
+  annotations:
+    gateway.istio.io/service-account: istio-eastwest
+    gateway.istio.io/trust-domain: cluster.local
+  labels:
+    topology.istio.io/cluster: cluster2
+    topology.istio.io/network: cluster2
+spec:
+  gatewayClassName: istio-remote
+  addresses:
+    - type: IPAddress
+      value: "EW_GW_ADDRESS_CLUSTER2"
+  listeners:
+    - name: cross-network
+      port: 15008
+      protocol: HBONE
+      tls:
+        mode: Passthrough
+      allowedRoutes:
+        namespaces:
+          from: Same
+    - name: xds-tls
+      port: 15012
+      protocol: TLS
+      tls:
+        mode: Passthrough
+      allowedRoutes:
+        namespaces:
+          from: Same
