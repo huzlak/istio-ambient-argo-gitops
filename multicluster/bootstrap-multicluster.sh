@@ -202,6 +202,8 @@ echo "==> Substituting placeholders in Application manifests..."
 # Replace repoURL in Git-sourced apps (root apps, eastwest, sleep, httpbin)
 find "${SCRIPT_DIR}/cluster1" "${SCRIPT_DIR}/cluster2" -name '*.yaml' \
   -exec grep -l 'repoURL:' {} \; | while read -r f; do
+  # Only replace repoURL in apps that use Git source (not Helm charts)
+  if grep -q "chart:" "$f"; then continue; fi
   sed -i "s|repoURL: .*|repoURL: ${REPO_URL}|g" "$f"
 done
 # Replace targetRevision in Git-sourced apps
