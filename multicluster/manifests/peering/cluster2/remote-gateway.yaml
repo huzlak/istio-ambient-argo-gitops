@@ -13,7 +13,7 @@ spec:
   gatewayClassName: istio-remote
   addresses:
     - type: IPAddress
-      value: "EW_GW_ADDRESS_CLUSTER1"
+      value: "172.19.1.2"
   listeners:
     - name: cross-network
       port: 15008
