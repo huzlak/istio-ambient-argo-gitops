@@ -198,13 +198,22 @@ echo "============================================"
 echo "Step 4: Deploy Istio in both clusters"
 echo "============================================"
 
-echo "==> Restoring placeholders from git before substitution..."
-git -C "${SCRIPT_DIR}" checkout -- cluster1/ cluster2/ manifests/ 2>/dev/null || true
-
-echo "==> Substituting placeholders..."
-find "${SCRIPT_DIR}" -name '*.yaml' -exec sed -i "s|REPO_URL|${REPO_URL}|g" {} +
-find "${SCRIPT_DIR}" -name '*.yaml' -exec sed -i "s|TARGET_REVISION|${TARGET_REVISION}|g" {} +
-find "${SCRIPT_DIR}" -name '*.yaml' -exec sed -i "s|CLUSTER2_SERVER|${CLUSTER2_SERVER}|g" {} +
+echo "==> Substituting placeholders in Application manifests..."
+# Replace repoURL in Git-sourced apps (root apps, eastwest, sleep, httpbin)
+find "${SCRIPT_DIR}/cluster1" "${SCRIPT_DIR}/cluster2" -name '*.yaml' \
+  -exec grep -l 'repoURL:' {} \; | while read -r f; do
+  sed -i "s|repoURL: .*|repoURL: ${REPO_URL}|g" "$f"
+done
+# Replace targetRevision in Git-sourced apps
+find "${SCRIPT_DIR}/cluster1" "${SCRIPT_DIR}/cluster2" -name '*.yaml' \
+  -exec grep -l 'targetRevision:' {} \; | while read -r f; do
+  # Only replace targetRevision in apps that use Git source (not Helm charts)
+  if grep -q "chart:" "$f"; then continue; fi
+  sed -i "s|targetRevision: .*|targetRevision: ${TARGET_REVISION}|g" "$f"
+done
+# Replace destination server in cluster2 apps
+find "${SCRIPT_DIR}/cluster2/apps" -name '*.yaml' \
+  -exec sed -i "s|server: .*|server: ${CLUSTER2_SERVER}|g" {} +
 
 echo "==> Pushing substituted values to git (ArgoCD reads child apps from the repo)..."
 git -C "${SCRIPT_DIR}" add cluster1/ cluster2/ manifests/
