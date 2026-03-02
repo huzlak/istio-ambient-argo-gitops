@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ztunnel
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+  source:
+    repoURL: us-docker.pkg.dev/soloio-img/istio-helm
+    chart: ztunnel
+    targetRevision: 1.28.4-solo
+    helm:
+      values: |
+        network: CLUSTER_NAME
+        env:
+          SKIP_VALIDATE_TRUST_DOMAIN: "true"
+          ISTIO_META_CLUSTER_ID: CLUSTER_NAME
+          ISTIO_META_NETWORK: CLUSTER_NAME
+        l7Telemetry:
+          enabled: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
