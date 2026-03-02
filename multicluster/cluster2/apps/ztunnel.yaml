@@ -8,7 +8,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: us-docker.pkg.dev/soloio-img/istio-helm
+    repoURL: https://github.com/huzlak/istio-ambient-argo-gitops
     chart: ztunnel
     targetRevision: 1.28.4-solo
     helm:
@@ -21,7 +21,7 @@ spec:
         l7Telemetry:
           enabled: true
   destination:
-    server: https://172.19.0.3:6443
+    server: https://172.19.0.6:6443
     namespace: kube-system
   syncPolicy:
     automated:

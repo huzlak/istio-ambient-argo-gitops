@@ -8,7 +8,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: us-docker.pkg.dev/soloio-img/istio-helm
+    repoURL: https://github.com/huzlak/istio-ambient-argo-gitops
     chart: istiod
     targetRevision: 1.28.4-solo
     helm:
@@ -35,7 +35,7 @@ spec:
             name: solo-istio-license
             namespace: istio-system
   destination:
-    server: https://172.19.0.3:6443
+    server: https://172.19.0.6:6443
     namespace: istio-system
   ignoreDifferences:
     - group: admissionregistration.k8s.io

@@ -8,7 +8,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: us-docker.pkg.dev/soloio-img/istio-helm
+    repoURL: https://github.com/huzlak/istio-ambient-argo-gitops
     chart: cni
     targetRevision: 1.28.4-solo
     helm:
