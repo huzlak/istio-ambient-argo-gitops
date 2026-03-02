@@ -53,7 +53,7 @@ echo "Step 2: Install ArgoCD in cluster1"
 echo "============================================"
 
 kubectl --context="${CLUSTER1_CONTEXT}" create namespace argocd --dry-run=client -o yaml | kubectl --context="${CLUSTER1_CONTEXT}" apply -f -
-kubectl --context="${CLUSTER1_CONTEXT}" apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+kubectl --context="${CLUSTER1_CONTEXT}" apply --server-side --force-conflicts -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
 echo "==> Waiting for ArgoCD to be ready..."
 kubectl --context="${CLUSTER1_CONTEXT}" wait --for=condition=available deployment/argocd-server -n argocd --timeout=300s
@@ -67,28 +67,126 @@ echo "============================================"
 echo "Step 3: Register cluster2 in ArgoCD"
 echo "============================================"
 
-ARGOCD_PASSWORD=$(kubectl --context="${CLUSTER1_CONTEXT}" -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)
+# Detect if cluster2 is a kind cluster by matching its API server port to a kind Docker node
+CLUSTER2_KIND_NODE=""
+if command -v docker &>/dev/null; then
+  # Get the API server URL from kubeconfig for the cluster2 context
+  CLUSTER2_KUBE_CLUSTER=$(kubectl config view -o jsonpath="{.contexts[?(@.name==\"${CLUSTER2_CONTEXT}\")].context.cluster}" 2>/dev/null || true)
+  CLUSTER2_KUBE_SERVER=$(kubectl config view -o jsonpath="{.clusters[?(@.name==\"${CLUSTER2_KUBE_CLUSTER}\")].cluster.server}" 2>/dev/null || true)
+  # Extract port from the server URL (e.g., https://127.0.0.1:7002 -> 7002)
+  CLUSTER2_API_PORT=$(echo "${CLUSTER2_KUBE_SERVER}" | grep -oP ':\K[0-9]+$' || true)
+  if [ -n "${CLUSTER2_API_PORT}" ]; then
+    # Find a kind control-plane node that has this port mapped
+    CLUSTER2_KIND_NODE=$(docker ps --filter "label=io.x-k8s.kind.role=control-plane" --format '{{.Names}}' 2>/dev/null | while read -r node; do
+      if docker port "${node}" 2>/dev/null | grep -q ":${CLUSTER2_API_PORT}$"; then
+        echo "${node}"
+        break
+      fi
+    done)
+  fi
+fi
 
-argocd login localhost:8080 \
-  --username admin \
-  --password "${ARGOCD_PASSWORD}" \
-  --insecure \
-  --port-forward \
-  --port-forward-namespace argocd \
-  --kube-context "${CLUSTER1_CONTEXT}"
+if [ -n "${CLUSTER2_KIND_NODE}" ]; then
+  echo "==> Detected kind cluster for cluster2 (node: ${CLUSTER2_KIND_NODE})"
+  echo "  Using Docker-internal IP for ArgoCD cluster registration..."
 
-argocd cluster add "${CLUSTER2_CONTEXT}" \
-  --name "${CLUSTER2_NAME}" \
-  --port-forward \
-  --port-forward-namespace argocd \
-  --kube-context "${CLUSTER1_CONTEXT}" \
-  -y
+  # Get the Docker-internal IP of cluster2's control plane node
+  CLUSTER2_INTERNAL_IP=$(docker inspect "${CLUSTER2_KIND_NODE}" -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+  CLUSTER2_SERVER="https://${CLUSTER2_INTERNAL_IP}:6443"
 
-CLUSTER2_SERVER=$(argocd cluster list \
-  --port-forward \
-  --port-forward-namespace argocd \
-  --kube-context "${CLUSTER1_CONTEXT}" \
-  -o json | jq -r ".[] | select(.name==\"${CLUSTER2_NAME}\") | .server")
+  # Get the service account token from cluster2
+  kubectl --context="${CLUSTER2_CONTEXT}" create serviceaccount argocd-manager -n kube-system --dry-run=client -o yaml | kubectl --context="${CLUSTER2_CONTEXT}" apply -f -
+  kubectl --context="${CLUSTER2_CONTEXT}" apply -f - <<'RBAC'
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argocd-manager-role
+rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["*"]
+  - nonResourceURLs: ["*"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argocd-manager-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argocd-manager-role
+subjects:
+  - kind: ServiceAccount
+    name: argocd-manager
+    namespace: kube-system
+RBAC
+
+  # Create a long-lived token secret
+  kubectl --context="${CLUSTER2_CONTEXT}" apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: argocd-manager-token
+  namespace: kube-system
+  annotations:
+    kubernetes.io/service-account.name: argocd-manager
+type: kubernetes.io/service-account-token
+EOF
+
+  # Wait for the token to be populated
+  sleep 3
+  CLUSTER2_TOKEN=$(kubectl --context="${CLUSTER2_CONTEXT}" -n kube-system get secret argocd-manager-token -o jsonpath='{.data.token}' | base64 -d)
+  CLUSTER2_CA=$(kubectl --context="${CLUSTER2_CONTEXT}" -n kube-system get secret argocd-manager-token -o jsonpath='{.data.ca\.crt}')
+
+  # Create the ArgoCD cluster secret in cluster1
+  kubectl --context="${CLUSTER1_CONTEXT}" apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cluster-${CLUSTER2_NAME}
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: cluster
+type: Opaque
+stringData:
+  name: "${CLUSTER2_NAME}"
+  server: "${CLUSTER2_SERVER}"
+  config: |
+    {
+      "bearerToken": "${CLUSTER2_TOKEN}",
+      "tlsClientConfig": {
+        "insecure": false,
+        "caData": "${CLUSTER2_CA}"
+      }
+    }
+EOF
+
+else
+  echo "==> Registering cluster2 via argocd CLI..."
+  ARGOCD_PASSWORD=$(kubectl --context="${CLUSTER1_CONTEXT}" -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)
+
+  argocd login localhost:8080 \
+    --username admin \
+    --password "${ARGOCD_PASSWORD}" \
+    --insecure \
+    --port-forward \
+    --port-forward-namespace argocd \
+    --kube-context "${CLUSTER1_CONTEXT}"
+
+  argocd cluster add "${CLUSTER2_CONTEXT}" \
+    --name "${CLUSTER2_NAME}" \
+    --port-forward \
+    --port-forward-namespace argocd \
+    --kube-context "${CLUSTER1_CONTEXT}" \
+    -y
+
+  CLUSTER2_SERVER=$(argocd cluster list \
+    --port-forward \
+    --port-forward-namespace argocd \
+    --kube-context "${CLUSTER1_CONTEXT}" \
+    -o json | jq -r ".[] | select(.name==\"${CLUSTER2_NAME}\") | .server")
+fi
 
 echo "  Cluster2 registered at: ${CLUSTER2_SERVER}"
 
@@ -100,6 +198,9 @@ echo "============================================"
 echo "Step 4: Deploy Istio in both clusters"
 echo "============================================"
 
+echo "==> Restoring placeholders from git before substitution..."
+git -C "${SCRIPT_DIR}" checkout -- cluster1/ cluster2/ manifests/ 2>/dev/null || true
+
 echo "==> Substituting placeholders..."
 find "${SCRIPT_DIR}" -name '*.yaml' -exec sed -i "s|REPO_URL|${REPO_URL}|g" {} +
 find "${SCRIPT_DIR}" -name '*.yaml' -exec sed -i "s|TARGET_REVISION|${TARGET_REVISION}|g" {} +
@@ -109,10 +210,18 @@ echo "==> Applying root applications..."
 kubectl --context="${CLUSTER1_CONTEXT}" apply -f "${SCRIPT_DIR}/cluster1/root-app.yaml"
 kubectl --context="${CLUSTER1_CONTEXT}" apply -f "${SCRIPT_DIR}/cluster2/root-app.yaml"
 
-echo "==> Waiting for Istio to be ready in cluster1..."
+echo "==> Waiting for ArgoCD to sync and deploy istiod in cluster1..."
+until kubectl --context="${CLUSTER1_CONTEXT}" get deployment/istiod -n istio-system &>/dev/null; do
+  echo "  Waiting for istiod deployment to appear in cluster1..."
+  sleep 10
+done
 kubectl --context="${CLUSTER1_CONTEXT}" wait --for=condition=available deployment/istiod -n istio-system --timeout=300s
 
-echo "==> Waiting for Istio to be ready in cluster2..."
+echo "==> Waiting for ArgoCD to sync and deploy istiod in cluster2..."
+until kubectl --context="${CLUSTER2_CONTEXT}" get deployment/istiod -n istio-system &>/dev/null; do
+  echo "  Waiting for istiod deployment to appear in cluster2..."
+  sleep 10
+done
 kubectl --context="${CLUSTER2_CONTEXT}" wait --for=condition=available deployment/istiod -n istio-system --timeout=300s
 
 ###############################################################################
@@ -204,4 +313,4 @@ echo "  Cluster1 EW GW:   ${EW_GW_ADDRESS_CLUSTER1}"
 echo "  Cluster2 EW GW:   ${EW_GW_ADDRESS_CLUSTER2}"
 echo ""
 echo "  Test cross-cluster connectivity:"
-echo "    kubectl exec deploy/sleep -n httpbin --context ${CLUSTER1_CONTEXT} -- curl -sv http://httpbin.httpbin.svc.cluster.local:8000/headers"
+echo "    kubectl exec deploy/sleep -n httpbin --context ${CLUSTER1_CONTEXT} -- curl -sv http://httpbin.httpbin.mesh.internal:8000/headers"
