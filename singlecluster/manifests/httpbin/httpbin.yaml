@@ -3,8 +3,6 @@ kind: ServiceAccount
 metadata:
   name: httpbin
   namespace: httpbin
-  labels:
-    app.kubernetes.io/instance: httpbin
 ---
 apiVersion: v1
 kind: Service
@@ -13,7 +11,6 @@ metadata:
   namespace: httpbin
   labels:
     app: httpbin
-    app.kubernetes.io/instance: httpbin
     service: httpbin
     solo.io/service-scope: global
 spec:
@@ -29,8 +26,6 @@ kind: Deployment
 metadata:
   name: httpbin
   namespace: httpbin
-  labels:
-    app.kubernetes.io/instance: httpbin
 spec:
   replicas: 1
   selector:
