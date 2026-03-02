@@ -8,11 +8,11 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: REPO_URL
-    targetRevision: TARGET_REVISION
+    repoURL: https://github.com/huzlak/istio-ambient-argo-gitops
+    targetRevision: main
     path: multicluster/manifests/httpbin
   destination:
-    server: CLUSTER2_SERVER
+    server: https://172.19.0.6:6443
     namespace: httpbin
   syncPolicy:
     automated:

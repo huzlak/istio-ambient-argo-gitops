@@ -206,6 +206,11 @@ find "${SCRIPT_DIR}" -name '*.yaml' -exec sed -i "s|REPO_URL|${REPO_URL}|g" {} +
 find "${SCRIPT_DIR}" -name '*.yaml' -exec sed -i "s|TARGET_REVISION|${TARGET_REVISION}|g" {} +
 find "${SCRIPT_DIR}" -name '*.yaml' -exec sed -i "s|CLUSTER2_SERVER|${CLUSTER2_SERVER}|g" {} +
 
+echo "==> Pushing substituted values to git (ArgoCD reads child apps from the repo)..."
+git -C "${SCRIPT_DIR}" add cluster1/ cluster2/ manifests/
+git -C "${SCRIPT_DIR}" commit -m "Bootstrap: substitute placeholders with deployment values" --allow-empty || true
+git -C "${SCRIPT_DIR}" push || { echo "ERROR: git push failed. ArgoCD reads apps from git, so placeholders must be committed."; exit 1; }
+
 echo "==> Applying root applications..."
 kubectl --context="${CLUSTER1_CONTEXT}" apply -f "${SCRIPT_DIR}/cluster1/root-app.yaml"
 kubectl --context="${CLUSTER1_CONTEXT}" apply -f "${SCRIPT_DIR}/cluster2/root-app.yaml"

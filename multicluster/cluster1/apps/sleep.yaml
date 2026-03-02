@@ -8,8 +8,8 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: REPO_URL
-    targetRevision: TARGET_REVISION
+    repoURL: https://github.com/huzlak/istio-ambient-argo-gitops
+    targetRevision: main
     path: multicluster/manifests/sleep
   destination:
     server: https://kubernetes.default.svc

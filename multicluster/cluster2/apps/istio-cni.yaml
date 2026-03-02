@@ -20,7 +20,7 @@ spec:
           - kube-system
           - istio-system
   destination:
-    server: CLUSTER2_SERVER
+    server: https://172.19.0.6:6443
     namespace: kube-system
   syncPolicy:
     automated:

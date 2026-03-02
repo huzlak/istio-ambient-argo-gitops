@@ -35,7 +35,7 @@ spec:
             name: solo-istio-license
             namespace: istio-system
   destination:
-    server: CLUSTER2_SERVER
+    server: https://172.19.0.6:6443
     namespace: istio-system
   ignoreDifferences:
     - group: admissionregistration.k8s.io
