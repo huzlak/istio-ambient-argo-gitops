@@ -17,11 +17,9 @@ spec:
           cluster: cluster2
         glooAgent:
           enabled: true
+          insecure: true
           relay:
             serverAddress: gloo-mesh-mgmt-server.gloo-mesh.mesh.internal:9900
-          extraEnvs:
-            RELAY_DISABLE_SERVER_CERTIFICATE_VALIDATION:
-              value: "true"
         telemetryCollector:
           enabled: true
           config:
