@@ -10,13 +10,13 @@ spec:
   source:
     repoURL: https://storage.googleapis.com/gloo-platform/helm-charts
     chart: gloo-platform
-    targetRevision: GLOO_PLATFORM_VERSION
+    targetRevision: 2.12.0
     helm:
       values: |
         common:
           cluster: cluster1
         licensing:
-          glooMeshCoreLicenseKey: GLOO_MESH_LICENSE_KEY
+          glooMeshCoreLicenseKey: eyJhZGRPbnMiOiIiLCJleHAiOjE5NjYzNDUwMzMsImlhdCI6MTY1MDk4NTAzMywiayI6IkFwU2NKZyIsImx0IjoidHJpYWwiLCJwcm9kdWN0IjoiZ2xvby1tZXNoLWdhdGV3YXkifQ.cVNIiCm57crZl2Ryaj24y_PtqjRmBWrRHnaNKcBYvcw
         glooMgmtServer:
           enabled: true
           serviceType: ClusterIP
