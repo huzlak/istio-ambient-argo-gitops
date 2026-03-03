@@ -352,6 +352,26 @@ done
 kubectl --context="${CLUSTER1_CONTEXT}" wait --for=condition=available deployment/gloo-mesh-mgmt-server -n gloo-mesh --timeout=300s
 echo "  gloo-mesh-mgmt-server is ready!"
 
+# Copy relay identity token from mgmt cluster to agent cluster.
+# In insecure mode the relay doesn't use mTLS, but the agent still needs the
+# token secret to exist (the Helm chart mounts it). We copy it to prevent
+# potential mount errors.
+echo "==> Copying relay-identity-token-secret to cluster2..."
+until kubectl --context="${CLUSTER1_CONTEXT}" get secret relay-identity-token-secret -n gloo-mesh &>/dev/null; do
+  echo "  Waiting for relay-identity-token-secret to appear in cluster1..."
+  sleep 5
+done
+RELAY_TOKEN=$(kubectl --context="${CLUSTER1_CONTEXT}" get secret relay-identity-token-secret -n gloo-mesh -o jsonpath='{.data.token}' | base64 -d)
+kubectl --context="${CLUSTER2_CONTEXT}" create secret generic relay-identity-token-secret \
+  -n gloo-mesh --from-literal=token="${RELAY_TOKEN}" \
+  --dry-run=client -o yaml | kubectl --context="${CLUSTER2_CONTEXT}" apply -f -
+
+# Also copy relay-root-tls-secret so the agent has the CA bundle available.
+echo "==> Copying relay-root-tls-secret to cluster2..."
+kubectl --context="${CLUSTER1_CONTEXT}" get secret relay-root-tls-secret -n gloo-mesh -o yaml \
+  | grep -v "namespace:" | grep -v "resourceVersion:" | grep -v "uid:" | grep -v "creationTimestamp:" \
+  | kubectl --context="${CLUSTER2_CONTEXT}" apply -n gloo-mesh -f -
+
 # Label telemetry-gateway service for cross-cluster visibility via Istio multicluster.
 # The mgmt-server label is handled via Helm serviceOverrides; the telemetry-gateway
 # uses the OTel subchart which doesn't support serviceOverrides, so we label it here.
