@@ -352,6 +352,17 @@ done
 kubectl --context="${CLUSTER1_CONTEXT}" wait --for=condition=available deployment/gloo-mesh-mgmt-server -n gloo-mesh --timeout=300s
 echo "  gloo-mesh-mgmt-server is ready!"
 
+# Label telemetry-gateway service for cross-cluster visibility via Istio multicluster.
+# The mgmt-server label is handled via Helm serviceOverrides; the telemetry-gateway
+# uses the OTel subchart which doesn't support serviceOverrides, so we label it here.
+# The ArgoCD Application has ignoreDifferences for this label to prevent reconciliation.
+echo "==> Labeling gloo-telemetry-gateway for cross-cluster service discovery..."
+until kubectl --context="${CLUSTER1_CONTEXT}" get svc/gloo-telemetry-gateway -n gloo-mesh &>/dev/null; do
+  echo "  Waiting for gloo-telemetry-gateway service to appear..."
+  sleep 5
+done
+kubectl --context="${CLUSTER1_CONTEXT}" label svc gloo-telemetry-gateway -n gloo-mesh "solo.io/service-scope=global" --overwrite
+
 echo "==> Waiting for gloo-mesh-agent in cluster2..."
 until kubectl --context="${CLUSTER2_CONTEXT}" get deployment/gloo-mesh-agent -n gloo-mesh &>/dev/null; do
   echo "  Waiting for gloo-mesh-agent deployment to appear..."

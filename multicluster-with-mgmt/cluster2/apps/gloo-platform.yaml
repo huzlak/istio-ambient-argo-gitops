@@ -18,7 +18,7 @@ spec:
         glooAgent:
           enabled: true
           relay:
-            serverAddress: gloo-mesh-mgmt-server.gloo-mesh.svc.cluster.local:9900
+            serverAddress: gloo-mesh-mgmt-server.gloo-mesh.mesh.internal:9900
           extraEnvs:
             RELAY_DISABLE_SERVER_CERTIFICATE_VALIDATION:
               value: "true"
@@ -27,7 +27,7 @@ spec:
           config:
             exporters:
               otlp:
-                endpoint: gloo-telemetry-gateway.gloo-mesh.svc.cluster.local:4317
+                endpoint: gloo-telemetry-gateway.gloo-mesh.mesh.internal:4317
         telemetryCollectorCustomization:
           skipVerify: true
   destination:

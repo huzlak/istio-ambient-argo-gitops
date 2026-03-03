@@ -20,6 +20,10 @@ spec:
         glooMgmtServer:
           enabled: true
           serviceType: ClusterIP
+          serviceOverrides:
+            metadata:
+              labels:
+                solo.io/service-scope: global
           relay:
             pushRbac: true
         glooUi:
@@ -35,6 +39,12 @@ spec:
             type: ClusterIP
         telemetryCollector:
           enabled: true
+  ignoreDifferences:
+    - group: ""
+      kind: Service
+      name: gloo-telemetry-gateway
+      jsonPointers:
+        - /metadata/labels/solo.io~1service-scope
   destination:
     server: https://kubernetes.default.svc
     namespace: gloo-mesh
