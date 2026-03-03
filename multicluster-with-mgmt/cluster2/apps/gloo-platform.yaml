@@ -1,0 +1,41 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster2-gloo-platform
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: default
+  source:
+    repoURL: https://storage.googleapis.com/gloo-platform/helm-charts
+    chart: gloo-platform
+    targetRevision: GLOO_PLATFORM_VERSION
+    helm:
+      values: |
+        common:
+          cluster: cluster2
+        glooAgent:
+          enabled: true
+          relay:
+            serverAddress: gloo-mesh-mgmt-server.gloo-mesh.svc.cluster.local:9900
+          extraEnvs:
+            RELAY_DISABLE_SERVER_CERTIFICATE_VALIDATION:
+              value: "true"
+        telemetryCollector:
+          enabled: true
+          config:
+            exporters:
+              otlp:
+                endpoint: gloo-telemetry-gateway.gloo-mesh.svc.cluster.local:4317
+        telemetryCollectorCustomization:
+          skipVerify: true
+  destination:
+    server: https://172.19.0.6:6443
+    namespace: gloo-mesh
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false

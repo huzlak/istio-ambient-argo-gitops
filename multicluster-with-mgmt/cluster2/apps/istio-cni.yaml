@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster2-istio-cni
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+  source:
+    repoURL: us-docker.pkg.dev/soloio-img/istio-helm
+    chart: cni
+    targetRevision: 1.28.4-solo
+    helm:
+      values: |
+        profile: ambient
+        ambient:
+          dnsCapture: true
+        excludeNamespaces:
+          - kube-system
+          - istio-system
+  destination:
+    server: https://172.19.0.6:6443
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

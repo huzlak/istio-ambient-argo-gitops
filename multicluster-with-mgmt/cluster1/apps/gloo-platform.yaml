@@ -1,0 +1,46 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster1-gloo-platform
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: default
+  source:
+    repoURL: https://storage.googleapis.com/gloo-platform/helm-charts
+    chart: gloo-platform
+    targetRevision: GLOO_PLATFORM_VERSION
+    helm:
+      values: |
+        common:
+          cluster: cluster1
+        licensing:
+          glooMeshCoreLicenseKey: GLOO_MESH_LICENSE_KEY
+        glooMgmtServer:
+          enabled: true
+          serviceType: ClusterIP
+          relay:
+            pushRbac: true
+        glooUi:
+          enabled: true
+        redis:
+          deployment:
+            enabled: true
+        prometheus:
+          enabled: true
+        telemetryGateway:
+          enabled: true
+          service:
+            type: ClusterIP
+        telemetryCollector:
+          enabled: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gloo-mesh
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
